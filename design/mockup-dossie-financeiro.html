@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Dossiê Financeiro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1B2430;
+    --ink-2:#242F3E;
+    --paper:#F3EFE4;
+    --paper-2:#EAE4D4;
+    --carbon:#8A93A3;
+    --carbon-dark:#5B6472;
+    --stamp-red:#B23A2E;
+    --stamp-green:#2F6F4E;
+    --brass:#C08A2E;
+    --hair: rgba(27,36,48,0.14);
+  }
+  html[data-theme="light"]{
+    --ink:#F6F3EA;
+    --ink-2:#EAE4D4;
+    --paper:#FFFFFF;
+    --paper-2:#F2EEE1;
+    --carbon:#6B7280;
+    --carbon-dark:#454B54;
+    --hair: rgba(27,36,48,0.12);
+  }
+  html[data-theme="light"] body{color:#1B2430;}
+  html[data-theme="light"] .memo{color:#1B2430;box-shadow:0 6px 18px rgba(27,36,48,0.08);}
+  html[data-theme="light"] .memo p{color:#3E4650;}
+  html[data-theme="light"] .protocolo,
+  html[data-theme="light"] .brand p,
+  html[data-theme="light"] .tab{color:var(--carbon-dark);}
+  html[data-theme="light"] .protocolo b, html[data-theme="light"] .brand h1{color:#1B2430;}
+  html[data-theme="light"] .panel{box-shadow:0 6px 18px rgba(27,36,48,0.08);}
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--ink);
+    color:var(--paper);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+    transition:background .3s ease, color .3s ease;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:28px 20px 60px;}
+
+  header{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:12px;}
+  .brand{display:flex;align-items:center;gap:12px;}
+  .seal{
+    width:46px;height:46px;border-radius:50%;
+    border:2px solid var(--brass);
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Special Elite',monospace;color:var(--brass);font-size:18px;
+    transform:rotate(-8deg);
+  }
+  .brand h1{font-family:'Special Elite',monospace;font-size:20px;letter-spacing:0.5px;margin:0;font-weight:400;}
+  .brand p{margin:2px 0 0;font-size:11px;color:var(--carbon);letter-spacing:1.5px;text-transform:uppercase;}
+  .protocolo{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--carbon);text-align:right;line-height:1.6;}
+  .protocolo b{color:var(--paper);}
+
+  .tabs{display:flex;gap:6px;margin-bottom:22px;border-bottom:1px solid var(--hair);}
+  .tab{
+    font-family:'IBM Plex Mono',monospace;font-size:12.5px;letter-spacing:0.5px;
+    color:var(--carbon);background:transparent;border:none;cursor:pointer;
+    padding:10px 16px;position:relative;text-transform:uppercase;
+  }
+  .tab.active{color:var(--paper);}
+  .tab.active::after{
+    content:"";position:absolute;left:12px;right:12px;bottom:-1px;height:2px;background:var(--brass);
+  }
+  .view{display:none;animation:fade .25s ease;}
+  .view.active{display:block;}
+  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+  .grid{display:grid;grid-template-columns:1.3fr 1fr;gap:18px;}
+  @media (max-width:780px){.grid{grid-template-columns:1fr;}}
+
+  .panel{
+    background:var(--paper);color:var(--ink);
+    border-radius:3px;padding:20px 22px;
+    box-shadow:0 10px 24px rgba(0,0,0,0.28);
+  }
+  .panel h2{
+    font-family:'Special Elite',monospace;font-size:13px;letter-spacing:1px;
+    text-transform:uppercase;margin:0 0 14px;color:var(--carbon-dark);
+    display:flex;align-items:center;gap:8px;
+  }
+  .panel h2::before{content:"";width:6px;height:6px;background:var(--brass);border-radius:50%;display:inline-block;}
+
+  .resumo-row{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:6px;}
+  .metric{flex:1;min-width:140px;}
+  .metric .label{font-size:10.5px;text-transform:uppercase;letter-spacing:1px;color:var(--carbon-dark);}
+  .metric .value{font-family:'IBM Plex Mono',monospace;font-size:24px;font-weight:600;margin-top:4px;}
+  .metric .value.neg{color:var(--stamp-red);}
+  .metric .value.pos{color:var(--stamp-green);}
+  .divider{height:1px;background:var(--hair);margin:16px 0;}
+  .barra{height:8px;background:var(--paper-2);border-radius:4px;overflow:hidden;margin-top:14px;}
+  .barra > div{height:100%;background:var(--brass);transition:width .5s ease;}
+  .legenda-barra{display:flex;justify-content:space-between;font-size:10.5px;color:var(--carbon-dark);margin-top:6px;font-family:'IBM Plex Mono',monospace;}
+
+  .memo{
+    background:var(--ink-2);color:var(--paper);border-radius:3px;padding:18px 20px;
+    border-left:3px solid var(--brass);
+  }
+  .memo h2{color:var(--brass);}
+  .memo p{font-size:13.5px;line-height:1.6;margin:0 0 14px;color:#D9D3C2;}
+  .btn{
+    font-family:'IBM Plex Mono',monospace;font-size:11.5px;text-transform:uppercase;letter-spacing:0.5px;
+    background:var(--brass);color:var(--ink);border:none;border-radius:2px;padding:9px 14px;cursor:pointer;
+  }
+  .btn.ghost{background:transparent;border:1px solid var(--carbon-dark);color:var(--paper);margin-left:8px;}
+  .btn.mini{padding:6px 10px;font-size:10.5px;margin-top:8px;width:100%;}
+  .btn:disabled{opacity:0.55;cursor:default;}
+  .btn.quitado{background:var(--stamp-green);color:#fff;}
+
+  .fatura{
+    position:relative;background:var(--paper-2);border:1px dashed var(--carbon-dark);
+    border-radius:3px;padding:14px 16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:flex-start;gap:14px;overflow:hidden;
+  }
+  .fatura:last-child{margin-bottom:0;}
+  .fatura .info{flex:1;}
+  .fatura .info b{display:block;font-size:14px;margin-bottom:3px;}
+  .fatura .info span{font-size:11.5px;color:var(--carbon-dark);font-family:'IBM Plex Mono',monospace;}
+  .fatura .right-col{text-align:right;min-width:130px;}
+  .fatura .valor{font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:600;}
+  .stamp{
+    position:absolute;top:6px;right:14px;
+    font-family:'Special Elite',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;
+    padding:3px 10px;border:2px solid; border-radius:4px;transform:rotate(-9deg);opacity:0.9;
+    transition:all .25s ease;
+  }
+  .stamp.red{color:var(--stamp-red);border-color:var(--stamp-red);}
+  .stamp.green{color:var(--stamp-green);border-color:var(--stamp-green);}
+  .stamp.gold{color:var(--brass);border-color:var(--brass);}
+  .stamp.pop{animation:pop .35s ease;}
+  @keyframes pop{0%{transform:rotate(-9deg) scale(1.6);opacity:0}60%{opacity:1}100%{transform:rotate(-9deg) scale(1);}}
+
+  .parcela-track{margin-top:10px;padding-top:10px;border-top:1px dashed var(--hair);}
+  .parcela-label{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--carbon-dark);display:flex;justify-content:space-between;margin-bottom:5px;}
+  .parcela-bar{height:6px;background:#DCD5C2;border-radius:3px;overflow:hidden;}
+  .parcela-bar > div{height:100%;background:var(--stamp-green);transition:width .5s ease;}
+  .saldo-devedor{font-size:10.5px;color:var(--carbon-dark);margin-top:5px;font-family:'IBM Plex Mono',monospace;}
+
+  .meta-card{background:var(--paper-2);border-radius:3px;padding:16px;margin-bottom:12px;}
+  .meta-card:last-child{margin-bottom:0;}
+  .meta-top{display:flex;justify-content:space-between;font-size:13px;margin-bottom:8px;}
+  .meta-top b{font-size:14px;}
+  .meta-top span{font-family:'IBM Plex Mono',monospace;color:var(--carbon-dark);}
+
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+  .form-row.full{grid-template-columns:1fr;}
+  label{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:0.8px;color:var(--carbon-dark);margin-bottom:5px;}
+  input,select{
+    width:100%;padding:9px 10px;border:1px solid var(--hair);border-radius:2px;
+    background:#fff;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--ink);
+  }
+  .canais{display:flex;gap:10px;margin-top:4px;}
+  .canal{
+    flex:1;border:1px solid var(--hair);border-radius:3px;padding:10px;text-align:center;font-size:12px;
+    display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--carbon-dark);
+  }
+  .canal.on{border-color:var(--stamp-green);color:var(--stamp-green);background:#F0F6F2;}
+
+  .toast{
+    position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);
+    background:var(--ink-2);color:var(--paper);border:1px solid var(--brass);
+    padding:12px 18px;border-radius:3px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;
+    box-shadow:0 12px 28px rgba(0,0,0,0.4);opacity:0;pointer-events:none;transition:all .3s ease;max-width:90vw;text-align:center;z-index:50;
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0);}
+
+  .header-controls{display:flex;gap:8px;align-items:center;}
+  .icon-btn{
+    width:36px;height:36px;border-radius:50%;border:1px solid var(--hair);
+    background:transparent;color:var(--paper);cursor:pointer;font-size:15px;
+    display:flex;align-items:center;justify-content:center;transition:all .2s ease;
+  }
+  html[data-theme="light"] .icon-btn{color:#1B2430;}
+  .icon-btn:hover{border-color:var(--brass);}
+  .icon-btn.on{background:var(--brass);border-color:var(--brass);color:var(--ink);}
+  .money{transition:filter .15s ease;}
+  body.privacy-on .money{
+    filter:blur(0px);
+    color:transparent !important;
+    position:relative;
+  }
+  body.privacy-on .money::before{
+    content:"••••••";
+    position:absolute;left:0;top:0;color:var(--carbon-dark);
+  }
+
+  .log-item{display:flex;gap:12px;padding:12px 0;border-bottom:1px dashed var(--hair);}
+  .log-item:last-child{border-bottom:none;}
+  .log-avatar{
+    width:30px;height:30px;border-radius:50%;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:#fff;
+  }
+  .log-avatar.you{background:var(--brass);}
+  .log-avatar.partner{background:var(--stamp-green);}
+  .log-body{flex:1;}
+  .log-body .desc{font-size:13px;}
+  .log-body .desc b{font-weight:600;}
+  .log-meta{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--carbon-dark);margin-top:3px;display:flex;gap:8px;flex-wrap:wrap;}
+  .channel-tag{
+    font-size:9.5px;text-transform:uppercase;letter-spacing:0.5px;padding:1px 6px;border-radius:10px;
+    border:1px solid var(--carbon-dark);color:var(--carbon-dark);
+  }
+  .members-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--hair);}
+  .members-row:last-of-type{border-bottom:none;}
+  .members-row .log-avatar{width:34px;height:34px;font-size:12px;}
+  .member-name{font-size:13px;font-weight:600;flex:1;}
+  .member-role{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--carbon-dark);text-transform:uppercase;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <div class="seal">$</div>
+      <div>
+        <h1>Dossiê Financeiro</h1>
+        <p>Ficha de acompanhamento — Você &amp; Marina</p>
+      </div>
+    </div>
+
+    <div class="header-controls">
+      <button class="icon-btn" id="privacy-toggle" title="Ocultar valores">👁</button>
+      <button class="icon-btn" id="theme-toggle" title="Alternar tema">🌙</button>
+      <div class="protocolo">
+        PROTOCOLO Nº <b>0294 / 2026</b><br>
+        ATUALIZADO EM <b>29/08/2026, 09:12</b>
+      </div>
+    </div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" data-view="painel">Painel</button>
+    <button class="tab" data-view="faturas">Faturas &amp; Contas</button>
+    <button class="tab" data-view="metas">Metas &amp; Sonhos</button>
+    <button class="tab" data-view="atividades">Atividades</button>
+  </div>
+
+  <!-- PAINEL -->
+  <section class="view active" id="painel">
+    <div class="grid" style="margin-bottom:18px;">
+      <div class="panel">
+        <h2>Resumo do mês</h2>
+        <div class="resumo-row">
+          <div class="metric">
+            <div class="label">Saldo atual</div>
+            <div class="value money">R$ 2.480,12</div>
+          </div>
+          <div class="metric">
+            <div class="label">Projeção · 30/09</div>
+            <div class="value neg money">R$ –640,00</div>
+          </div>
+          <div class="metric">
+            <div class="label">Faturas em aberto</div>
+            <div class="value">3</div>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="label">Orçamento de Alimentação — usado</div>
+        <div class="barra"><div style="width:82%"></div></div>
+        <div class="legenda-barra"><span class="money">R$ 656,00 de R$ 800,00</span><span>82%</span></div>
+      </div>
+
+      <div class="memo">
+        <h2>O agente diz</h2>
+        <p>Você já comprometeu 82% do orçamento de Alimentação e ainda faltam 9 dias pro fim do mês. No ritmo atual, seu saldo fecha negativo em 30/09.</p>
+        <p>Sugestão: corta o delivery essa semana e a fatura do cartão vence sem sufoco.</p>
+        <div>
+          <button class="btn">Ver plano completo</button>
+          <button class="btn ghost">Já resolvi</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Vencendo em breve</h2>
+      <div class="fatura">
+        <span class="stamp red">Vence em 2 dias</span>
+        <div class="info"><b>Cartão Nubank</b><span>Vencimento 31/08 · Crédito</span></div>
+        <div class="valor money">R$ 843,20</div>
+      </div>
+      <div class="fatura">
+        <span class="stamp red">Vence hoje</span>
+        <div class="info">
+          <b>Notebook Dell</b><span>Compra parcelada · Cartão Itaú</span>
+          <div class="parcela-track">
+            <div class="parcela-label"><span>Parcela 4 de 10</span><span class="money">R$ 245,00/mês</span></div>
+            <div class="parcela-bar"><div style="width:40%"></div></div>
+          </div>
+        </div>
+        <div class="valor money">R$ 245,00</div>
+      </div>
+      <div class="fatura">
+        <span class="stamp green">Pago</span>
+        <div class="info"><b>Aluguel</b><span>Pago em 05/08 · Recorrente</span></div>
+        <div class="valor money">R$ 1.200,00</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FATURAS & CONTAS -->
+  <section class="view" id="faturas">
+    <div class="grid">
+      <div class="panel">
+        <h2>Cadastrar fatura / recorrência</h2>
+        <div class="form-row">
+          <div><label>Descrição</label><input placeholder="Ex: Netflix, Notebook 10x..."></div>
+          <div><label>Valor (R$)</label><input placeholder="0,00"></div>
+        </div>
+        <div class="form-row">
+          <div><label>Dia de vencimento</label><input placeholder="Ex: 10"></div>
+          <div>
+            <label>Tipo</label>
+            <select><option>Recorrente (mensalidade)</option><option>Compra parcelada</option><option>Conta avulsa</option></select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div><label>Nº de parcelas (se aplicável)</label><input placeholder="Ex: 10"></div>
+          <div>
+            <label>Categoria</label>
+            <select><option>Moradia</option><option>Assinatura</option><option>Cartão de crédito</option><option>Transporte</option><option>Alimentação</option></select>
+          </div>
+        </div>
+        <div class="form-row full">
+          <div>
+            <label>Onde te aviso</label>
+            <div class="canais">
+              <div class="canal on">📲<span>WhatsApp</span></div>
+              <div class="canal on">✈️<span>Telegram</span></div>
+              <div class="canal">🌐<span>Só no painel</span></div>
+            </div>
+          </div>
+        </div>
+        <button class="btn" style="margin-top:4px;">Salvar na ficha</button>
+      </div>
+
+      <div class="panel" id="lista-contas">
+        <h2>Todas as contas</h2>
+
+        <div class="fatura" data-kind="recorrente">
+          <span class="stamp red status-stamp">Vence em 2 dias</span>
+          <div class="info"><b>Cartão Nubank</b><span>Crédito · dia 31</span></div>
+          <div class="right-col">
+            <div class="valor money">R$ 843,20</div>
+            <button class="btn mini pay-btn">Marcar como paga</button>
+          </div>
+        </div>
+
+        <div class="fatura" data-kind="parcelada" data-current="4" data-total="10" data-valor="245.00"
+             data-next-dates="29/09,29/10,29/11,29/12,29/01,29/02">
+          <span class="stamp red status-stamp">Vence hoje</span>
+          <div class="info">
+            <b>Notebook Dell</b><span>Compra parcelada · Cartão Itaú</span>
+            <div class="parcela-track">
+              <div class="parcela-label"><span class="parcela-texto">Parcela 4 de 10 · próxima 29/09</span></div>
+              <div class="parcela-bar"><div class="parcela-fill" style="width:40%"></div></div>
+              <div class="saldo-devedor">Saldo devedor: <span class="saldo-valor money">R$ 1.470,00</span></div>
+            </div>
+          </div>
+          <div class="right-col">
+            <div class="valor money">R$ 245,00</div>
+            <button class="btn mini pay-btn">Marcar como paga</button>
+          </div>
+        </div>
+
+        <div class="fatura" data-kind="recorrente">
+          <span class="stamp green status-stamp">Pago</span>
+          <div class="info"><b>Aluguel</b><span>Recorrente · dia 05</span></div>
+          <div class="right-col">
+            <div class="valor money">R$ 1.200,00</div>
+            <button class="btn mini pay-btn" disabled>Pago ✓</button>
+          </div>
+        </div>
+
+        <div class="fatura" data-kind="recorrente">
+          <span class="stamp red status-stamp">Vence hoje</span>
+          <div class="info"><b>Internet</b><span>Recorrente · dia 29</span></div>
+          <div class="right-col">
+            <div class="valor money">R$ 99,90</div>
+            <button class="btn mini pay-btn">Marcar como paga</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- METAS -->
+  <section class="view" id="metas">
+    <div class="grid">
+      <div class="panel">
+        <h2>Sonhos em andamento</h2>
+        <div class="meta-card">
+          <div class="meta-top"><b>Viagem — Chapada Diamantina</b><span class="money">R$ 6.300 / R$ 15.000</span></div>
+          <div class="barra"><div style="width:42%;background:var(--stamp-green)"></div></div>
+          <div class="legenda-barra"><span class="money">Aporte sugerido: R$ 870/mês</span><span>42%</span></div>
+        </div>
+        <div class="meta-card">
+          <div class="meta-top"><b>Reserva de emergência</b><span class="money">R$ 4.100 / R$ 10.000</span></div>
+          <div class="barra"><div style="width:41%"></div></div>
+          <div class="legenda-barra"><span class="money">Aporte sugerido: R$ 500/mês</span><span>41%</span></div>
+        </div>
+      </div>
+      <div class="memo">
+        <h2>O agente diz</h2>
+        <p>No ritmo atual da Chapada Diamantina, você bate a meta em 11 meses — 1 mês antes do prazo que você deu.</p>
+        <p>Já a Reserva de emergência está 2 meses atrasada. Quer que eu realoque parte do orçamento de Lazer pra ela?</p>
+        <div><button class="btn">Ajustar plano</button><button class="btn ghost">Deixa assim</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ATIVIDADES -->
+  <section class="view" id="atividades">
+    <div class="grid">
+      <div class="panel">
+        <h2>Linha do tempo</h2>
+
+        <div class="log-item">
+          <div class="log-avatar partner">M</div>
+          <div class="log-body">
+            <div class="desc"><b>Marina</b> confirmou o pagamento de <b>Aluguel</b> — R$ 1.200,00</div>
+            <div class="log-meta"><span>29/08, 09:14</span><span class="channel-tag">WhatsApp · PIN validado</span></div>
+          </div>
+        </div>
+
+        <div class="log-item">
+          <div class="log-avatar you">V</div>
+          <div class="log-body">
+            <div class="desc"><b>Você</b> registrou a parcela 4/10 de <b>Notebook Dell</b></div>
+            <div class="log-meta"><span>28/08, 20:47</span><span class="channel-tag">Painel</span></div>
+          </div>
+        </div>
+
+        <div class="log-item">
+          <div class="log-avatar partner">M</div>
+          <div class="log-body">
+            <div class="desc"><b>Marina</b> ativou o modo privacidade</div>
+            <div class="log-meta"><span>27/08, 08:02</span><span class="channel-tag">Painel</span></div>
+          </div>
+        </div>
+
+        <div class="log-item">
+          <div class="log-avatar you">V</div>
+          <div class="log-body">
+            <div class="desc"><b>Você</b> criou a meta <b>Viagem — Chapada Diamantina</b></div>
+            <div class="log-meta"><span>02/08, 18:40</span><span class="channel-tag">Painel</span></div>
+          </div>
+        </div>
+
+        <div class="log-item">
+          <div class="log-avatar partner">M</div>
+          <div class="log-body">
+            <div class="desc"><b>Marina</b> aceitou o convite e entrou no Dossiê</div>
+            <div class="log-meta"><span>01/08, 12:00</span><span class="channel-tag">Convite</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Membros</h2>
+        <div class="members-row">
+          <div class="log-avatar you">V</div>
+          <div class="member-name">Você</div>
+          <div class="member-role">Dono</div>
+        </div>
+        <div class="members-row">
+          <div class="log-avatar partner">M</div>
+          <div class="member-name">Marina</div>
+          <div class="member-role">Membro</div>
+        </div>
+        <div class="divider"></div>
+        <div class="label" style="margin-bottom:8px;">Convidar alguém pra essa ficha</div>
+        <button class="btn" style="width:100%;">Gerar convite</button>
+        <div class="log-meta" style="margin-top:8px;">Link expira em 24h. Ninguém digita senha de ninguém — a pessoa entra com a própria conta.</div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+  const themeBtn = document.getElementById('theme-toggle');
+  themeBtn.addEventListener('click', ()=>{
+    const html = document.documentElement;
+    const isLight = html.getAttribute('data-theme') === 'light';
+    html.setAttribute('data-theme', isLight ? 'dark' : 'light');
+    themeBtn.textContent = isLight ? '🌙' : '☀️';
+    themeBtn.classList.toggle('on', !isLight);
+  });
+
+  const privacyBtn = document.getElementById('privacy-toggle');
+  privacyBtn.addEventListener('click', ()=>{
+    const on = document.body.classList.toggle('privacy-on');
+    privacyBtn.classList.toggle('on', on);
+    privacyBtn.title = on ? 'Mostrar valores' : 'Ocultar valores';
+    showToast(on ? 'Valores ocultos. Só quem estiver com a sua sessão aberta pode reativar.' : 'Valores visíveis novamente.');
+  });
+
+  document.querySelectorAll('#atividades .btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      showToast('Convite gerado: dossie.app/convite/8f21a9 — expira em 24h. Envie por WhatsApp ou copie o link.');
+    });
+  });
+
+  document.querySelectorAll('.tab').forEach(tab=>{
+    tab.addEventListener('click', ()=>{
+      document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+      document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById(tab.dataset.view).classList.add('active');
+    });
+  });
+
+  function showToast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(()=>t.classList.remove('show'), 4200);
+  }
+
+  function fmtBRL(v){
+    return 'R$ ' + v.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+
+  document.querySelectorAll('.pay-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const card = btn.closest('.fatura');
+      const kind = card.dataset.kind;
+      const stamp = card.querySelector('.status-stamp');
+
+      if(kind === 'recorrente'){
+        stamp.textContent = 'Pago';
+        stamp.classList.remove('red');
+        stamp.classList.add('green','pop');
+        btn.textContent = 'Pago ✓';
+        btn.disabled = true;
+        showToast('Pagamento registrado. Próximo lembrete agendado automaticamente pro mês que vem.');
+        return;
+      }
+
+      if(kind === 'parcelada'){
+        let current = parseInt(card.dataset.current, 10);
+        const total = parseInt(card.dataset.total, 10);
+        const valor = parseFloat(card.dataset.valor);
+        let nextDates = card.dataset.nextDates.split(',');
+
+        current += 1;
+        card.dataset.current = current;
+
+        const fill = card.querySelector('.parcela-fill');
+        const texto = card.querySelector('.parcela-texto');
+        const saldoValor = card.querySelector('.saldo-valor');
+        const pct = Math.round((current/total)*100);
+        fill.style.width = pct + '%';
+
+        if(current >= total){
+          texto.textContent = 'Parcela ' + total + ' de ' + total + ' · quitada';
+          stamp.textContent = 'Quitado';
+          stamp.classList.remove('red');
+          stamp.classList.add('gold','pop');
+          card.querySelector('.saldo-devedor').style.display = 'none';
+          btn.textContent = 'Quitado ✓';
+          btn.classList.add('quitado');
+          btn.disabled = true;
+          showToast('Última parcela registrada. Compra "Notebook Dell" quitada e removida da lista de faturas em aberto.');
+        } else {
+          const next = nextDates[0];
+          nextDates = nextDates.slice(1);
+          card.dataset.nextDates = nextDates.join(',');
+          texto.textContent = 'Parcela ' + current + ' de ' + total + ' · próxima ' + next;
+          const saldo = (total-current)*valor;
+          saldoValor.textContent = fmtBRL(saldo);
+          stamp.textContent = 'Em dia';
+          stamp.classList.remove('red');
+          stamp.classList.add('green','pop');
+          setTimeout(()=>{
+            stamp.classList.remove('green','pop');
+            stamp.classList.add('red');
+            stamp.textContent = 'Vence ' + next;
+          }, 1600);
+          showToast('Parcela ' + current + '/' + total + ' registrada. Próxima vence ' + next + ' — saldo devedor: ' + fmtBRL(saldo) + '.');
+        }
+      }
+    });
+  });
+</script>
+</body>
+</html>

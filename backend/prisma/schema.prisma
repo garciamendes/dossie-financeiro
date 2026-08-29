@@ -1,0 +1,231 @@
+// Schema do Dossiê Financeiro
+// Reflete o modelo de dados definido em PRD_sistema_financeiro.md e SEGURANCA.md
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Identidade ----------
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String? // null se login só por passkey
+  pinHash      String? // PIN de 4 dígitos p/ confirmar ações via bot — nunca texto puro
+  createdAt    DateTime @default(now())
+
+  memberships  HouseholdMember[]
+  auditLogs    AuditLog[]
+  refreshTokens RefreshToken[]
+  preferences  UserPreferences?
+}
+
+model UserPreferences {
+  id                  String  @id @default(cuid())
+  userId              String  @unique
+  user                User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  theme               Theme   @default(system)
+  hideValuesByDefault Boolean @default(false)
+}
+
+enum Theme {
+  dark
+  light
+  system
+}
+
+// Refresh tokens com rotação: cada token usado uma única vez.
+// Reuso de um token já invalidado é sinal de possível roubo — ver SEGURANCA.md, seção 1.
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+}
+
+// ---------- Household (ficha compartilhada) ----------
+
+model Household {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  members              HouseholdMember[]
+  invites              Invite[]
+  accounts             Account[]
+  charges              RecurringCharge[]
+  installmentPurchases InstallmentPurchase[]
+  goals                Goal[]
+  transactions         Transaction[]
+  auditLogs            AuditLog[]
+}
+
+enum HouseholdRole {
+  owner
+  member
+}
+
+// Permissões granulares por membro — nunca um perfil fixo.
+// O owner define; o backend valida de novo em cada endpoint (ver PermissionsGuard).
+model HouseholdMember {
+  id          String        @id @default(cuid())
+  householdId String
+  household   Household     @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        HouseholdRole @default(member)
+
+  canCreateCharge  Boolean @default(true)
+  canEditCharge    Boolean @default(true)
+  canDeleteCharge  Boolean @default(false)
+  canMarkPaid      Boolean @default(true)
+  canManageGoals   Boolean @default(true)
+  canInviteMembers Boolean @default(false)
+  canManageMembers Boolean @default(false) // exclusiva do owner na prática
+
+  joinedAt DateTime @default(now())
+
+  @@unique([householdId, userId])
+}
+
+enum InviteStatus {
+  pending
+  accepted
+  expired
+  revoked
+}
+
+model Invite {
+  id          String       @id @default(cuid())
+  householdId String
+  household   Household    @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  token       String       @unique
+  channel     String? // whatsapp | telegram | link
+  status      InviteStatus @default(pending)
+  expiresAt   DateTime
+  createdAt   DateTime     @default(now())
+}
+
+// ---------- Financeiro ----------
+
+enum AccountType {
+  checking
+  credit_card
+  wallet
+}
+
+model Account {
+  id           String      @id @default(cuid())
+  householdId  String
+  household    Household   @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  name         String
+  type         AccountType
+  institution  String?
+  balanceCents Int         @default(0)
+  createdAt    DateTime    @default(now())
+
+  charges RecurringCharge[]
+}
+
+enum ChargeStatus {
+  pending
+  paid
+  overdue
+}
+
+model RecurringCharge {
+  id          String       @id @default(cuid())
+  householdId String
+  household   Household    @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  accountId   String?
+  account     Account?     @relation(fields: [accountId], references: [id])
+  description String
+  amountCents Int
+  dueDay      Int
+  category    String?
+  status      ChargeStatus @default(pending)
+
+  remindViaWhatsapp Boolean @default(true)
+  remindViaTelegram Boolean @default(true)
+
+  createdAt DateTime @default(now())
+}
+
+enum InstallmentStatus {
+  active
+  settled
+}
+
+// Compra parcelada — a transição current -> current+1 é automática
+// no evento de pagamento (ver InstallmentsService.registerPayment).
+model InstallmentPurchase {
+  id                     String            @id @default(cuid())
+  householdId            String
+  household              Household         @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  description            String
+  installmentAmountCents Int
+  totalInstallments      Int
+  currentInstallment     Int               @default(0)
+  nextDueDate            DateTime
+  status                 InstallmentStatus @default(active)
+  createdAt              DateTime          @default(now())
+
+  transactions Transaction[]
+}
+
+enum TransactionOrigin {
+  manual
+  whatsapp
+  telegram
+  bank
+}
+
+model Transaction {
+  id                     String                @id @default(cuid())
+  householdId            String
+  household              Household             @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  amountCents            Int
+  occurredAt             DateTime              @default(now())
+  category               String?
+  origin                 TransactionOrigin
+  installmentPurchaseId  String?
+  installmentPurchase    InstallmentPurchase?  @relation(fields: [installmentPurchaseId], references: [id])
+  createdByUserId        String
+}
+
+model Goal {
+  id                    String    @id @default(cuid())
+  householdId           String
+  household             Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  name                  String
+  targetAmountCents     Int
+  currentAmountCents    Int       @default(0)
+  targetDate            DateTime?
+  suggestedMonthlyCents Int?
+  createdAt             DateTime  @default(now())
+}
+
+// ---------- Auditoria (feature visível no produto, aba "Atividades") ----------
+
+model AuditLog {
+  id          String    @id @default(cuid())
+  householdId String
+  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  action      String // ex: "charge.marked_paid", "member.permission_changed"
+  entityType  String // ex: "RecurringCharge", "InstallmentPurchase"
+  entityId    String?
+  channel     String // "web" | "whatsapp" | "telegram"
+  summary     String // descrição pronta pra exibir na timeline, sem dado sensível cru
+  createdAt   DateTime  @default(now())
+}
