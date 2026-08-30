@@ -175,6 +175,26 @@ export class AuthService {
     });
   }
 
+  /** Dados do usuário logado — pro app montar cabeçalho, avatares, etc. */
+  async me(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        mfaEnabled: true,
+        pinHash: true,
+        preferences: {
+          select: { theme: true, hideValuesByDefault: true },
+        },
+      },
+    });
+    if (!user) throw new UnauthorizedException();
+    const { pinHash, ...rest } = user;
+    return { ...rest, hasPin: pinHash != null };
+  }
+
   // ---------- Tokens ----------
 
   async issueTokens(userId: string) {

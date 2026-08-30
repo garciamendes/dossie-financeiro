@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
@@ -49,6 +49,12 @@ export class AuthController {
   @Throttle({ default: { ttl: 60_000, limit: 30 } })
   refresh(@Body() dto: RefreshDto) {
     return this.authService.rotateRefreshToken(dto.refreshToken);
+  }
+
+  @Get('me')
+  @UseGuards(AuthGuard('jwt'))
+  me(@Req() req: any) {
+    return this.authService.me(req.user.id);
   }
 
   @Post('revoke-all')

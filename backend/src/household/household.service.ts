@@ -48,6 +48,82 @@ export class HouseholdService {
     });
   }
 
+  /** Fichas das quais o usuário autenticado participa (pra tela inicial do app). */
+  async listForUser(userId: string) {
+    const memberships = await this.prisma.householdMember.findMany({
+      where: { userId },
+      include: { household: { select: { id: true, name: true, createdAt: true } } },
+      orderBy: { joinedAt: 'asc' },
+    });
+
+    return memberships.map((m) => ({
+      id: m.household.id,
+      name: m.household.name,
+      role: m.role,
+      joinedAt: m.joinedAt,
+      permissions: this.permissionsOf(m),
+    }));
+  }
+
+  /** Detalhe de uma ficha: membros (com permissões) e convites pendentes. */
+  async getDetail(householdId: string) {
+    const household = await this.prisma.household.findUnique({
+      where: { id: householdId },
+      include: {
+        members: {
+          include: { user: { select: { id: true, name: true, email: true } } },
+          orderBy: { joinedAt: 'asc' },
+        },
+        invites: {
+          where: { status: 'pending' },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+    if (!household) throw new NotFoundException('Ficha não encontrada.');
+
+    return {
+      id: household.id,
+      name: household.name,
+      members: household.members.map((m) => ({
+        id: m.id,
+        userId: m.userId,
+        name: m.user.name,
+        email: m.user.email,
+        role: m.role,
+        joinedAt: m.joinedAt,
+        permissions: this.permissionsOf(m),
+      })),
+      pendingInvites: household.invites.map((i) => ({
+        id: i.id,
+        token: i.token,
+        channel: i.channel,
+        expiresAt: i.expiresAt,
+        createdAt: i.createdAt,
+      })),
+    };
+  }
+
+  private permissionsOf(m: {
+    canCreateCharge: boolean;
+    canEditCharge: boolean;
+    canDeleteCharge: boolean;
+    canMarkPaid: boolean;
+    canManageGoals: boolean;
+    canInviteMembers: boolean;
+    canManageMembers: boolean;
+  }) {
+    return {
+      canCreateCharge: m.canCreateCharge,
+      canEditCharge: m.canEditCharge,
+      canDeleteCharge: m.canDeleteCharge,
+      canMarkPaid: m.canMarkPaid,
+      canManageGoals: m.canManageGoals,
+      canInviteMembers: m.canInviteMembers,
+      canManageMembers: m.canManageMembers,
+    };
+  }
+
   /** Só quem tem `canInviteMembers` chega aqui (garantido pelo PermissionsGuard na rota). */
   async createInvite(actor: ActorContext, channel?: string) {
     const memberCount = await this.prisma.householdMember.count({
