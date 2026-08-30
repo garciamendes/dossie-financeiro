@@ -1,0 +1,28 @@
+name: Scan de lembretes (cron)
+
+# Dispara o motor de lembretes 1x/dia no deploy sem Redis.
+# Também "acorda" o backend em planos que hibernam (Render free).
+#
+# Configurar no repositório (Settings):
+#   - Secrets:   CRON_SECRET   (mesmo valor da env do backend)
+#   - Variables: BACKEND_URL   (ex: https://dossie-backend.onrender.com)
+
+on:
+  schedule:
+    - cron: "0 11 * * *" # 11:00 UTC = 08:00 em America/Sao_Paulo
+  workflow_dispatch: {} # permite rodar manualmente pelo painel do GitHub
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Acordar o backend
+        run: curl -fsS --retry 5 --retry-all-errors --retry-delay 10 "${{ vars.BACKEND_URL }}/health" || true
+
+      - name: Rodar o scan de lembretes
+        run: |
+          code=$(curl -sS -o /tmp/out.json -w "%{http_code}" -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            "${{ vars.BACKEND_URL }}/internal/reminders/scan")
+          echo "HTTP $code"; cat /tmp/out.json; echo
+          test "$code" = "200"

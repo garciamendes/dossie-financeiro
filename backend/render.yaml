@@ -1,0 +1,36 @@
+# Blueprint do backend para o Render (plano free).
+# No painel do Render: New > Blueprint > aponta pra este repositório.
+# Banco (Neon) e Redis não entram aqui — ver DEPLOY.md.
+services:
+  - type: web
+    name: dossie-backend
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm ci && npx prisma generate && npm run build
+    startCommand: npx prisma migrate deploy && node dist/main.js
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NODE_ENV
+        value: production
+      - key: REMINDER_TIMEZONE
+        value: America/Sao_Paulo
+      # Sem Redis no plano free: o scan roda por POST /internal/reminders/scan
+      # (GitHub Actions agendado, ver .github/workflows/reminders-cron.yml).
+      - key: REMINDERS_QUEUE_ENABLED
+        value: "false"
+
+      # --- Preencha estes no painel do Render (nunca commite) ---
+      - key: DATABASE_URL          # string de conexão do Neon (com ?sslmode=require)
+        sync: false
+      - key: JWT_SECRET            # openssl rand -hex 32
+        sync: false
+      - key: FIELD_ENCRYPTION_KEY  # openssl rand -hex 32  (GUARDE em lugar seguro!)
+        sync: false
+      - key: CRON_SECRET           # openssl rand -hex 24
+        sync: false
+      - key: FRONTEND_URL          # URL do frontend na Vercel, sem barra no fim
+        sync: false
