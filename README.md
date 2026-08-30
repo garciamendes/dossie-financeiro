@@ -17,13 +17,36 @@ produto depois.
   Atividades (log de auditoria visível).
 - **`backend/`** — API (NestJS + Prisma). Ver `backend/README.md` para o que
   já está implementado e os próximos passos.
+- **`frontend/`** — dashboard web (Next.js + Tailwind) que consome a API.
+  Ver `frontend/README.md`.
 
 ## Status atual
 
-Fase 1 (MVP) em andamento: schema completo, autenticação com Argon2id,
-permissões granulares validadas no backend, PIN obrigatório para ações via
-bot, e a lógica de faturas/parcelas com log de auditoria automático.
+**Fase 1 (MVP) — backend e frontend completos.**
 
-Ainda faltam: módulo de Household/convites, rotas HTTP expostas, webhooks do
-WhatsApp/Telegram (Fase 2) e integração com Pluggy (Fase 4) — ver
+Backend: autenticação Argon2id com MFA/TOTP obrigatório e refresh rotativo;
+Household com convites e permissões granulares validadas no backend em toda
+rota; CRUD de contas (com criptografia de campo AES-256-GCM), faturas,
+compras parceladas (transição automática de parcela), metas e lançamentos;
+dashboard com projeção de fluxo de caixa; motor de lembretes agendado
+(BullMQ + Redis) com deduplicação e resposta "pagou?"; aba de Atividades
+(log de auditoria). Testes cobrindo os fluxos críticos.
+
+Frontend: fluxo completo de auth (registro + ativação de MFA, login em 2
+passos), onboarding de ficha, aceite de convite, e o dashboard com as 4
+abas do mockup (Painel, Faturas & Contas, Metas & Sonhos, Atividades),
+tema claro/escuro e modo "ocultar valores".
+
+Ainda faltam: webhooks do WhatsApp/Telegram (Fase 2), IA consultiva
+(Fase 3) e integração com Pluggy (Fase 4) — ver
 `docs/PRD_sistema_financeiro.md` para o roadmap completo.
+
+## Subindo o stack localmente
+
+```bash
+docker compose -f backend/docker-compose.yml up -d   # Postgres + Redis
+cd backend && npm install && cp .env.example .env    # ajuste os segredos
+npm run prisma:migrate && npm run start:dev          # API em :3333
+cd ../frontend && npm install && cp .env.local.example .env.local
+npm run dev                                          # web em :3000
+```

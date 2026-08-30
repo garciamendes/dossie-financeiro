@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { PermissionsGuard } from '../common/guards/permissions.guard';
 import { RequirePermission } from '../common/decorators/require-permission.decorator';
@@ -13,6 +13,20 @@ export class HouseholdController {
   @UseGuards(AuthGuard('jwt'))
   create(@Body('name') name: string, @Req() req: any) {
     return this.householdService.createHouseholdForOwner(req.user.id, name);
+  }
+
+  // Fichas do usuário autenticado — não passa pelo PermissionsGuard porque o
+  // filtro já é "onde eu sou membro".
+  @Get()
+  @UseGuards(AuthGuard('jwt'))
+  listMine(@Req() req: any) {
+    return this.householdService.listForUser(req.user.id);
+  }
+
+  @Get(':householdId')
+  @UseGuards(AuthGuard('jwt'), PermissionsGuard)
+  detail(@Param('householdId') householdId: string) {
+    return this.householdService.getDetail(householdId);
   }
 
   @Post(':householdId/invites')

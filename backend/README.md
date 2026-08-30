@@ -1,54 +1,95 @@
-# Dossiê Financeiro — Backend (esqueleto)
+# Dossiê Financeiro — Backend (Fase 1 / MVP)
 
-Ponto de partida do backend, seguindo `PRD_sistema_financeiro.md` e `SEGURANCA.md`.
+API do MVP, seguindo `../docs/PRD_sistema_financeiro.md` e `../docs/SEGURANCA.md`.
+Stack: **NestJS + Prisma (PostgreSQL) + BullMQ (Redis)**.
 
-## O que já está implementado
+## O que está implementado (Fase 1 completa)
 
-- **`prisma/schema.prisma`** — todas as entidades desenhadas: `User`, `Household`,
-  `HouseholdMember` (com permissões granulares), `Invite`, `Account`,
-  `RecurringCharge`, `InstallmentPurchase`, `Transaction`, `Goal`, `AuditLog`,
-  `UserPreferences`, `RefreshToken`.
-- **`AuthService`** — hash de senha e PIN com Argon2id, emissão de access
-  token (15min) + refresh token rotativo (uso único, reuso derruba todas
-  as sessões).
-- **`PermissionsGuard` + `@RequirePermission(...)`** — a regra de ouro do
-  `SEGURANCA.md`: toda rota que altera dado consulta o banco de novo pra
-  confirmar a permissão do membro, nunca confia no que o cliente diz sobre
-  si mesmo.
-- **`PinGuard`** — exigido em toda ação que vier do bot (WhatsApp/Telegram),
-  antes de qualquer lógica de negócio rodar.
-- **`ChargesService`** — `markRecurringChargeAsPaid` e
-  `registerInstallmentPayment`, essa última já com a transição automática de
-  parcela (avança, recalcula vencimento, quita ao bater o total) e chamando
-  o `AuditLogService` em toda mudança.
-- **`AuditLogService`** — grava e lista os eventos que alimentam a aba
-  "Atividades" do produto.
+### Identidade e sessão (`auth/`)
+- Registro com hash **Argon2id** de senha e PIN.
+- **MFA (TOTP) obrigatório desde o primeiro login**: `register` provisiona o
+  segredo (guardado **cifrado**) e devolve `otpauthUrl` + QR; só depois de
+  `POST /auth/mfa/activate` com um código válido é que tokens são emitidos.
+- Login em 2 passos quando o MFA está ativo (`/auth/login` → `mfaToken` →
+  `/auth/login/mfa`).
+- Access token curto + **refresh token rotativo** (uso único; reuso de um
+  token revogado derruba todas as sessões).
+- **Bloqueio progressivo** de login por tentativas erradas
+  (`LOGIN_MAX_FAILED` / `LOGIN_LOCK_MINUTES`).
+- `POST /auth/revoke-all` — botão "revogar tudo" da `SEGURANCA.md`.
+- Rate limit global + limites mais apertados nas rotas de `auth`.
 
-## O que falta pra rodar de ponta a ponta (próximos passos)
+### Household e permissões (`household/`, `common/guards/`)
+- Criação de ficha, convites com token de validade curta, aceite sem
+  compartilhar credencial, revogação, gestão de permissões granulares e
+  remoção de membro — tudo auditado.
+- `PermissionsGuard`: **toda** rota escopada a `:householdId` confirma no
+  banco que o usuário é membro (inclusive rotas de leitura) e, quando há
+  `@RequirePermission('flag')`, que o membro tem a flag.
+- `PinGuard`: pronto para os webhooks de bot (Fase 2) — exige PIN antes de
+  qualquer escrita vinda de WhatsApp/Telegram.
 
-1. `npm install` (dependências já estão no `package.json`).
-2. Configurar `DATABASE_URL` (Postgres) e rodar `npm run prisma:migrate`.
-3. Módulos ainda não escritos: `HouseholdModule` (criação de ficha, convites),
-   `GoalsModule`, integração com Pluggy (Fase 4) e os handlers de webhook do
-   WhatsApp Business API / Telegram Bot API (Fase 2), que vão validar
-   assinatura do webhook antes de tudo (ver `SEGURANCA.md`, seção 5).
-4. `AuthController` (rotas de login/registro/refresh) — o `AuthService` já
-   tem a lógica, falta expor via HTTP.
-5. Testes automatizados dos fluxos críticos: pagar fatura, avançar parcela,
-   guard de permissão negando corretamente quem não tem a flag.
+### Financeiro (`accounts/`, `charges/`, `installments/`, `goals/`, `transactions/`)
+- CRUD de contas (saldo e número **cifrados com AES-256-GCM** por campo;
+  exibição sempre mascarada `•••• 4821`).
+- CRUD de recorrências + `mark-paid` (gera `Transaction`, idempotente no ciclo).
+- Compras parceladas: criação + `register-payment` com a **transição
+  automática** do PRD (avança a parcela, recalcula o vencimento, quita ao
+  bater o total) — tudo numa transação de banco e no log.
+- Metas / modo "sonho": CRUD + aporte, com **aporte mensal sugerido**
+  recalculado a cada mudança (sobe sozinho se você atrasar).
+- Lançamentos manuais com filtro por período/categoria.
+
+### Dashboard (`dashboard/`)
+- `GET .../dashboard/summary` — saldo total, faturas em aberto, parcelas
+  ativas, progresso das metas, gasto do mês por categoria.
+- `GET .../dashboard/projection?days=60` — **projeção de fluxo de caixa** dia
+  a dia e a primeira data em que o saldo fica negativo. Núcleo é uma função
+  pura testada (`dashboard/projection.ts`).
+
+### Motor de lembretes (`reminders/`, `notifications/`)
+- Job **BullMQ** agendado por cron (`REMINDER_SCAN_CRON`).
+- `planReminders` (função pura, testada): N dias antes do vencimento →
+  `upcoming`; no dia → `due_day` ("Você pagou a fatura X?"). Não lembra o que
+  já está pago/quitado.
+- Deduplicação por `dedupeKey` única no banco — o scan é idempotente mesmo
+  rodando várias vezes no dia.
+- Entrega via `NotificationService` com canais plugáveis; na Fase 1 só
+  `console` está ligado (WhatsApp/Telegram são Fase 2, com resolução por
+  `ChannelLink` verificado já modelada).
+- `POST .../reminders/:id/reply` — interpreta "sim" / "não" / valor e marca
+  o pagamento pelo mesmo caminho auditado do painel.
+
+### Auditoria (`audit-log/`)
+- `GET .../activity` — a aba "Atividades": timeline de quem fez o quê, por
+  qual canal. Toda mutação dos services acima grava aqui.
 
 ## Rodando localmente
 
+Pré-requisitos: PostgreSQL e Redis (ex: `docker run -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:16` e `docker run -p 6379:6379 redis:7`).
+
 ```bash
 npm install
-cp .env.example .env   # defina DATABASE_URL e JWT_SECRET
+cp .env.example .env        # defina DATABASE_URL, JWT_SECRET, FIELD_ENCRYPTION_KEY (openssl rand -hex 32), REDIS_URL
 npm run prisma:generate
-npm run prisma:migrate
+npm run prisma:migrate      # aplica prisma/migrations/
 npm run start:dev
 ```
 
-> **Nota:** este código foi montado e testado (`npm install`, verificação de
-> tipos) dentro de um sandbox com rede restrita, onde `binaries.prisma.sh`
-> não é acessível — por isso `prisma generate` não pôde ser executado ali.
-> Em uma máquina normal (ou dentro do Claude Code) isso funciona sem
-> problema, já que só depende de internet completa.
+Testes (fluxos críticos — pagamento, transição de parcela, projeção,
+planejamento de lembrete, guard de permissão, criptografia):
+
+```bash
+npm test
+```
+
+## Próximos passos (fora da Fase 1)
+
+- **Fase 2** — webhooks WhatsApp Cloud API / Telegram Bot API: validação de
+  assinatura, vínculo verificado de número (`ChannelLink`), `PinGuard` em
+  toda escrita, OCR/áudio.
+- **Fase 3** — IA consultiva (resumo proativo, plano de economia) via
+  Anthropic API.
+- **Fase 4** — Open Banking via Pluggy.
+- Transversais: passkeys, recovery codes de MFA, `KMS` real para a chave de
+  campo, entidade de receita/salário na projeção.
