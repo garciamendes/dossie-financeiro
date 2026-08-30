@@ -18,6 +18,18 @@ import type {
 const BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "http://localhost:3333";
 
+// Deploy sem NEXT_PUBLIC_API_URL cairia silenciosamente no localhost — avisa alto.
+if (
+  process.env.NODE_ENV === "production" &&
+  !process.env.NEXT_PUBLIC_API_URL &&
+  typeof window !== "undefined"
+) {
+  // eslint-disable-next-line no-console
+  console.error(
+    "NEXT_PUBLIC_API_URL não foi definido no build — a API está apontando para localhost.",
+  );
+}
+
 export class ApiError extends Error {
   status: number;
   unauthorized: boolean;
