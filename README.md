@@ -20,10 +20,15 @@ produto depois.
 
 ## Status atual
 
-Fase 1 (MVP) em andamento: schema completo, autenticação com Argon2id,
-permissões granulares validadas no backend, PIN obrigatório para ações via
-bot, e a lógica de faturas/parcelas com log de auditoria automático.
+**Fase 1 (MVP) — backend completo.** Autenticação Argon2id com MFA/TOTP
+obrigatório e refresh rotativo; Household com convites e permissões granulares
+validadas no backend em toda rota; CRUD de contas (com criptografia de campo
+AES-256-GCM), faturas, compras parceladas (transição automática de parcela),
+metas e lançamentos; dashboard com projeção de fluxo de caixa; motor de
+lembretes agendado (BullMQ + Redis) com deduplicação e resposta "pagou?";
+aba de Atividades (log de auditoria). Testes cobrindo os fluxos críticos.
+Detalhes e endpoints em `backend/README.md`.
 
-Ainda faltam: módulo de Household/convites, rotas HTTP expostas, webhooks do
-WhatsApp/Telegram (Fase 2) e integração com Pluggy (Fase 4) — ver
+Ainda faltam: frontend Next.js, webhooks do WhatsApp/Telegram (Fase 2),
+IA consultiva (Fase 3) e integração com Pluggy (Fase 4) — ver
 `docs/PRD_sistema_financeiro.md` para o roadmap completo.

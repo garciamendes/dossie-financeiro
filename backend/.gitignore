@@ -1,0 +1,21 @@
+# Dependências
+node_modules/
+
+# Build
+dist/
+*.tsbuildinfo
+
+# Testes
+coverage/
+
+# Segredos e ambiente (nunca versionar — ver SEGURANCA.md, seção 3)
+.env
+.env.*
+!.env.example
+
+# Prisma
+prisma/*.db
+
+# Logs / editores
+*.log
+.DS_Store

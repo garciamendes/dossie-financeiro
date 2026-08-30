@@ -8,5 +8,6 @@ import { AuditLogModule } from '../audit-log/audit-log.module';
   imports: [AuditLogModule],
   providers: [ChargesService, PermissionsGuard],
   controllers: [ChargesController],
+  exports: [ChargesService],
 })
 export class ChargesModule {}

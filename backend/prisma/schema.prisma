@@ -20,10 +20,20 @@ model User {
   pinHash      String? // PIN de 4 dígitos p/ confirmar ações via bot — nunca texto puro
   createdAt    DateTime @default(now())
 
-  memberships  HouseholdMember[]
-  auditLogs    AuditLog[]
+  // MFA obrigatório (SEGURANCA.md, seção 1) — TOTP, nunca SMS.
+  // O segredo TOTP é dado sensível: guardado cifrado (AES-256-GCM), nunca em claro.
+  totpSecretEnc String?
+  mfaEnabled    Boolean @default(false)
+
+  // Bloqueio progressivo de login (SEGURANCA.md, seção 1).
+  failedLoginCount Int       @default(0)
+  lockedUntil      DateTime?
+
+  memberships   HouseholdMember[]
+  auditLogs     AuditLog[]
   refreshTokens RefreshToken[]
-  preferences  UserPreferences?
+  preferences   UserPreferences?
+  channelLinks  ChannelLink[]
 }
 
 model UserPreferences {
@@ -43,13 +53,30 @@ enum Theme {
 // Refresh tokens com rotação: cada token usado uma única vez.
 // Reuso de um token já invalidado é sinal de possível roubo — ver SEGURANCA.md, seção 1.
 model RefreshToken {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash String   @unique
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
   expiresAt DateTime
   revokedAt DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
+}
+
+// Vínculo verificado de um número/conta de WhatsApp ou Telegram a um usuário
+// (PRD: `linkedChannels`; SEGURANCA.md, seção 5: vínculo por código de confirmação).
+// O bot em si é Fase 2 — aqui fica só o modelo e a verificação.
+model ChannelLink {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider     String // "whatsapp" | "telegram"
+  externalId   String // número E.164 ou chat id do Telegram
+  verifyCode   String? // código de confirmação de uso único
+  verifiedAt   DateTime?
+  failedPinTries Int     @default(0)
+  createdAt    DateTime  @default(now())
+
+  @@unique([provider, externalId])
 }
 
 // ---------- Household (ficha compartilhada) ----------
@@ -67,6 +94,7 @@ model Household {
   goals                Goal[]
   transactions         Transaction[]
   auditLogs            AuditLog[]
+  reminderLogs         ReminderLog[]
 }
 
 enum HouseholdRole {
@@ -124,16 +152,25 @@ enum AccountType {
 }
 
 model Account {
-  id           String      @id @default(cuid())
-  householdId  String
-  household    Household   @relation(fields: [householdId], references: [id], onDelete: Cascade)
-  name         String
-  type         AccountType
-  institution  String?
-  balanceCents Int         @default(0)
-  createdAt    DateTime    @default(now())
+  id          String      @id @default(cuid())
+  householdId String
+  household   Household   @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  name        String
+  type        AccountType
+  institution String?
+
+  // SEGURANCA.md, seção 2: saldo e número da conta são criptografados em
+  // repouso, individualmente (AES-256-GCM), não só no disco do banco.
+  // `balanceEnc` guarda o valor em centavos serializado e cifrado; null = 0.
+  balanceEnc String?
+  numberEnc  String? // número completo da conta, cifrado
+  numberLast4 String? // últimos 4 dígitos, em claro, só p/ exibição mascarada "•••• 4821"
+
+  createdAt DateTime @default(now())
 
   charges RecurringCharge[]
+
+  @@index([householdId])
 }
 
 enum ChargeStatus {
@@ -150,14 +187,20 @@ model RecurringCharge {
   account     Account?     @relation(fields: [accountId], references: [id])
   description String
   amountCents Int
-  dueDay      Int
+  dueDay      Int // dia do mês (1-31) em que vence
   category    String?
   status      ChargeStatus @default(pending)
+  lastPaidAt  DateTime?
 
+  remindDaysBefore  Int     @default(3)
   remindViaWhatsapp Boolean @default(true)
   remindViaTelegram Boolean @default(true)
 
   createdAt DateTime @default(now())
+
+  reminderLogs ReminderLog[]
+
+  @@index([householdId])
 }
 
 enum InstallmentStatus {
@@ -176,10 +219,19 @@ model InstallmentPurchase {
   totalInstallments      Int
   currentInstallment     Int               @default(0)
   nextDueDate            DateTime
+  category               String?
   status                 InstallmentStatus @default(active)
-  createdAt              DateTime          @default(now())
+
+  remindDaysBefore  Int     @default(3)
+  remindViaWhatsapp Boolean @default(true)
+  remindViaTelegram Boolean @default(true)
+
+  createdAt DateTime @default(now())
 
   transactions Transaction[]
+  reminderLogs ReminderLog[]
+
+  @@index([householdId])
 }
 
 enum TransactionOrigin {
@@ -190,16 +242,20 @@ enum TransactionOrigin {
 }
 
 model Transaction {
-  id                     String                @id @default(cuid())
-  householdId            String
-  household              Household             @relation(fields: [householdId], references: [id], onDelete: Cascade)
-  amountCents            Int
-  occurredAt             DateTime              @default(now())
-  category               String?
-  origin                 TransactionOrigin
-  installmentPurchaseId  String?
-  installmentPurchase    InstallmentPurchase?  @relation(fields: [installmentPurchaseId], references: [id])
-  createdByUserId        String
+  id                    String               @id @default(cuid())
+  householdId           String
+  household             Household            @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  description           String?
+  amountCents           Int
+  occurredAt            DateTime             @default(now())
+  category              String?
+  origin                TransactionOrigin
+  installmentPurchaseId String?
+  installmentPurchase   InstallmentPurchase? @relation(fields: [installmentPurchaseId], references: [id])
+  createdByUserId       String
+  createdAt             DateTime             @default(now())
+
+  @@index([householdId, occurredAt])
 }
 
 model Goal {
@@ -212,6 +268,49 @@ model Goal {
   targetDate            DateTime?
   suggestedMonthlyCents Int?
   createdAt             DateTime  @default(now())
+
+  @@index([householdId])
+}
+
+// ---------- Lembretes (motor agendado — PRD seção 2, Fase 1) ----------
+
+enum ReminderKind {
+  upcoming // N dias antes do vencimento
+  due_day // no dia do vencimento — "você pagou a fatura X?"
+}
+
+enum ReminderStatus {
+  sent
+  answered
+  failed
+}
+
+model ReminderLog {
+  id          String    @id @default(cuid())
+  householdId String
+  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+
+  chargeId              String?
+  charge                RecurringCharge?     @relation(fields: [chargeId], references: [id], onDelete: Cascade)
+  installmentPurchaseId String?
+  installmentPurchase   InstallmentPurchase? @relation(fields: [installmentPurchaseId], references: [id], onDelete: Cascade)
+
+  kind      ReminderKind
+  channels  String // csv: "telegram,whatsapp,console"
+  dueDate   DateTime
+  status    ReminderStatus @default(sent)
+
+  // Chave de idempotência: um item + um tipo + uma data de vencimento
+  // só gera um lembrete, mesmo que o scan rode várias vezes no dia.
+  dedupeKey String @unique
+
+  responseText   String?
+  responseStatus ChargeStatus?
+  respondedAt    DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([householdId, createdAt])
 }
 
 // ---------- Auditoria (feature visível no produto, aba "Atividades") ----------
@@ -228,4 +327,6 @@ model AuditLog {
   channel     String // "web" | "whatsapp" | "telegram"
   summary     String // descrição pronta pra exibir na timeline, sem dado sensível cru
   createdAt   DateTime  @default(now())
+
+  @@index([householdId, createdAt])
 }
