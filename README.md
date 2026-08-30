@@ -50,3 +50,10 @@ npm run prisma:migrate && npm run start:dev          # API em :3333
 cd ../frontend && npm install && cp .env.local.example .env.local
 npm run dev                                          # web em :3000
 ```
+
+## Deploy
+
+Passo a passo (grátis: Neon + Render + Vercel + GitHub Actions) em
+[`DEPLOY.md`](DEPLOY.md). O backend roda com ou sem Redis: sem Redis
+(`REMINDERS_QUEUE_ENABLED=false`, padrão), o scan de lembretes é disparado
+por `POST /internal/reminders/scan` via cron externo.

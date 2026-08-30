@@ -4,6 +4,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { envValidationSchema } from './config/env.validation';
+import { HealthController } from './health.controller';
 import { PrismaModule } from './prisma/prisma.module';
 import { CryptoModule } from './crypto/crypto.module';
 import { AuthModule } from './auth/auth.module';
@@ -14,7 +15,10 @@ import { InstallmentsModule } from './installments/installments.module';
 import { GoalsModule } from './goals/goals.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { DashboardModule } from './dashboard/dashboard.module';
-import { RemindersModule } from './reminders/reminders.module';
+import {
+  RemindersModule,
+  remindersQueueEnabled,
+} from './reminders/reminders.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { AuditLogModule } from './audit-log/audit-log.module';
 
@@ -26,14 +30,20 @@ import { AuditLogModule } from './audit-log/audit-log.module';
     }),
 
     // Redis + BullMQ — motor de lembretes agendados (PRD, seção 3).
-    BullModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        connection: {
-          url: config.get<string>('REDIS_URL', 'redis://localhost:6379'),
-        },
-      }),
-    }),
+    // Só entra quando REMINDERS_QUEUE_ENABLED=true; sem isso, o deploy roda
+    // sem Redis e o scan é disparado por cron externo (ver RemindersModule).
+    ...(remindersQueueEnabled()
+      ? [
+          BullModule.forRootAsync({
+            inject: [ConfigService],
+            useFactory: (config: ConfigService) => ({
+              connection: {
+                url: config.get<string>('REDIS_URL', 'redis://localhost:6379'),
+              },
+            }),
+          }),
+        ]
+      : []),
 
     // Rate limiting global — SEGURANCA.md, seção 4: toda rota, especialmente
     // as que envolvem dinheiro, precisa de limite de requisições. Rotas de
@@ -50,10 +60,11 @@ import { AuditLogModule } from './audit-log/audit-log.module';
     GoalsModule,
     TransactionsModule,
     DashboardModule,
-    RemindersModule,
+    RemindersModule.register(),
     NotificationsModule,
     AuditLogModule,
   ],
+  controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

@@ -2,6 +2,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
   OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -24,7 +25,10 @@ export class RemindersService implements OnModuleInit {
   private readonly logger = new Logger(RemindersService.name);
 
   constructor(
-    @InjectQueue(REMINDERS_QUEUE) private queue: Queue,
+    // Opcional: quando REMINDERS_QUEUE_ENABLED != "true", o BullModule nem é
+    // registrado (deploy sem Redis) e isto chega como undefined. Nesse modo, o
+    // scan é disparado por HTTP em POST /internal/reminders/scan (cron externo).
+    @Optional() @InjectQueue(REMINDERS_QUEUE) private queue: Queue | undefined,
     private prisma: PrismaService,
     private config: ConfigService,
     private notifications: NotificationService,
@@ -35,6 +39,12 @@ export class RemindersService implements OnModuleInit {
 
   /** Agenda o scan diário (cron) assim que a app sobe. Idempotente. */
   async onModuleInit() {
+    if (!this.queue) {
+      this.logger.log(
+        'Fila desativada (sem Redis): agende um cron externo em POST /internal/reminders/scan.',
+      );
+      return;
+    }
     const pattern = this.config.get<string>('REMINDER_SCAN_CRON', '0 8 * * *');
     const tz = this.config.get<string>('REMINDER_TIMEZONE', 'America/Sao_Paulo');
     try {
