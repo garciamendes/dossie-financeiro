@@ -13,6 +13,11 @@ const CHANNEL_LABEL: Record<string, string> = {
   telegram: "Telegram",
 };
 
+function inviteLink(token: string): string {
+  const base = typeof window !== "undefined" ? window.location.origin : "";
+  return `${base}/convite/${token}`;
+}
+
 export function AtividadesTab() {
   const { activity, detail, reload } = useDashboard();
   const { me, currentHousehold } = useAuth();
@@ -21,6 +26,18 @@ export function AtividadesTab() {
   const h = currentHousehold?.id ?? "";
   const canInvite = currentHousehold?.permissions.canInviteMembers ?? false;
   const [inviting, setInviting] = useState(false);
+  const [busyInvite, setBusyInvite] = useState<string | null>(null);
+
+  async function copy(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast("Link copiado. Cola no WhatsApp/Telegram e manda pra pessoa.");
+    } catch {
+      toast("Não consegui copiar — selecione o link e copie na mão.", {
+        error: true,
+      });
+    }
+  }
 
   async function generateInvite() {
     if (!canInvite) {
@@ -30,22 +47,29 @@ export function AtividadesTab() {
     setInviting(true);
     try {
       const inv = await api.createInvite(h, "link");
-      const base =
-        typeof window !== "undefined" ? window.location.origin : "";
-      const link = `${base}/convite/${inv.token}`;
-      try {
-        await navigator.clipboard.writeText(link);
-        toast("Convite copiado pro clipboard. Expira em 24h.");
-      } catch {
-        toast(`Convite gerado: ${link}`);
-      }
       await reload();
+      await copy(inviteLink(inv.token));
     } catch (err) {
       toast(err instanceof ApiError ? err.message : "Falha ao gerar convite.", {
         error: true,
       });
     } finally {
       setInviting(false);
+    }
+  }
+
+  async function revoke(inviteId: string) {
+    setBusyInvite(inviteId);
+    try {
+      await api.revokeInvite(h, inviteId);
+      toast("Convite revogado. O link não funciona mais.");
+      await reload();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : "Falha ao revogar.", {
+        error: true,
+      });
+    } finally {
+      setBusyInvite(null);
     }
   }
 
@@ -108,24 +132,52 @@ export function AtividadesTab() {
             {inviting ? "Gerando…" : "Gerar convite"}
           </button>
           <div className="log-meta" style={{ marginTop: 8 }}>
-            Link expira em 24h. Ninguém digita senha de ninguém — a pessoa entra
-            com a própria conta.
+            O link expira em 24h e só serve uma vez. Ninguém digita senha de
+            ninguém — a pessoa entra com a própria conta.
           </div>
 
           {detail && detail.pendingInvites.length > 0 && (
             <>
               <div className="divider" />
               <div className="label" style={{ marginBottom: 8 }}>
-                Convites pendentes
+                Convites pendentes — copie e mande o link
               </div>
-              {detail.pendingInvites.map((inv) => (
-                <div className="log-meta" key={inv.id} style={{ marginBottom: 6 }}>
-                  <span className="channel-tag">{inv.channel ?? "link"}</span>
-                  <span>
-                    expira {new Date(inv.expiresAt).toLocaleString("pt-BR")}
-                  </span>
-                </div>
-              ))}
+              {detail.pendingInvites.map((inv) => {
+                const link = inviteLink(inv.token);
+                return (
+                  <div key={inv.id} style={{ marginBottom: 14 }}>
+                    <input
+                      readOnly
+                      value={link}
+                      onFocus={(e) => e.currentTarget.select()}
+                      style={{ marginBottom: 6 }}
+                    />
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        className="btn mini"
+                        style={{ marginTop: 0, flex: 1 }}
+                        onClick={() => copy(link)}
+                      >
+                        Copiar link
+                      </button>
+                      <button
+                        className="btn mini ghost"
+                        style={{ marginTop: 0 }}
+                        disabled={busyInvite === inv.id}
+                        onClick={() => revoke(inv.id)}
+                      >
+                        {busyInvite === inv.id ? "…" : "Revogar"}
+                      </button>
+                    </div>
+                    <div className="log-meta" style={{ marginTop: 5 }}>
+                      <span className="channel-tag">{inv.channel ?? "link"}</span>
+                      <span>
+                        expira {new Date(inv.expiresAt).toLocaleString("pt-BR")}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </>
           )}
         </Panel>

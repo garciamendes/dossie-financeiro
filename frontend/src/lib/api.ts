@@ -184,6 +184,10 @@ export const api = {
     ),
   acceptInvite: (token: string) =>
     request<unknown>(`/households/invites/${token}/accept`, { method: "POST" }),
+  revokeInvite: (id: string, inviteId: string) =>
+    request<unknown>(`/households/${id}/invites/${inviteId}`, {
+      method: "DELETE",
+    }),
 
   // dashboard
   summary: (h: string) =>
