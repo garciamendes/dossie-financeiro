@@ -37,13 +37,18 @@ sempre. Anote fora do servidor (gerenciador de senhas).
 
 ## 1. Banco — Neon
 
-1. cria conta em <https://neon.tech> → **New Project** (região mais perto).
-2. copia a **connection string** (a "pooled" serve). Formato:
-   `postgresql://USER:PASS@ep-xxx.sa-east-1.aws.neon.tech/neondb?sslmode=require`
+1. cria conta em <https://neon.tech> → **New Project** (região mais perto —
+   `aws-sa-east-1` / São Paulo).
+2. em **Connection Details**, pega a string do endpoint **Pooled connection**
+   e garante que ela tem `?sslmode=require`. O host tem `-pooler` no nome:
+   `postgresql://USER:PASS@ep-xxx-pooler.sa-east-1.aws.neon.tech/neondb?sslmode=require`
+   - A instância free do Render é minúscula; adiciona
+     `&connection_limit=5&pool_timeout=20` no fim pra não estourar o limite
+     de conexões do Neon.
 3. guarda pra usar como `DATABASE_URL` no Render.
 
 As migrations rodam sozinhas no deploy do backend (`prisma migrate deploy` no
-`startCommand`).
+`startCommand`, a cada boot — é idempotente).
 
 ---
 
@@ -62,7 +67,9 @@ As migrations rodam sozinhas no deploy do backend (`prisma migrate deploy` no
 5. testa: `curl https://SEU-BACKEND.onrender.com/health` → `{"status":"ok",...}`
 
 Sem `render.yaml` (deploy manual): New > Web Service, root `backend`,
-build `npm ci && npx prisma generate && npm run build`,
+build `npm ci --include=dev && npx prisma generate && npm run build`
+(o `--include=dev` é obrigatório: com `NODE_ENV=production` o Render pularia
+`@nestjs/cli` e o build quebraria),
 start `npx prisma migrate deploy && node dist/main.js`, health check
 `/health`, e as envs acima + `NODE_VERSION=20`, `NODE_ENV=production`,
 `REMINDERS_QUEUE_ENABLED=false`, `REMINDER_TIMEZONE=America/Sao_Paulo`.

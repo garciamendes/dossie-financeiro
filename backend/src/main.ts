@@ -26,6 +26,8 @@ async function bootstrap() {
 
   app.enableShutdownHooks();
 
-  await app.listen(config.get<number>('PORT', 3333));
+  // 0.0.0.0: plataformas de host (Render, Fly, Railway) exigem bind em todas
+  // as interfaces, não só localhost.
+  await app.listen(config.get<number>('PORT', 3333), '0.0.0.0');
 }
 bootstrap();

@@ -7,7 +7,11 @@ services:
     runtime: node
     plan: free
     rootDir: backend
-    buildCommand: npm ci && npx prisma generate && npm run build
+    # --include=dev: o Render põe NODE_ENV=production já no install, o que
+    # pularia @nestjs/cli/typescript e quebraria o `nest build`.
+    buildCommand: npm ci --include=dev && npx prisma generate && npm run build
+    # migrate deploy roda a cada boot (idempotente); `prisma` está em
+    # dependencies, então resolve mesmo com devDeps podadas.
     startCommand: npx prisma migrate deploy && node dist/main.js
     healthCheckPath: /health
     autoDeploy: true
